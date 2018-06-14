@@ -31,9 +31,9 @@ public class MulticastSocketClient {
                 //Joint the Multicast group.
                 clientSocket.joinGroup(address);
 
-                while (true) {
-                    readMessage(clientSocket);
-                }
+                String message = readMessage(clientSocket);
+                recognizeCommand(message);
+
             } catch (IOException ex) {
                 ex.printStackTrace();
             }
@@ -48,6 +48,30 @@ public class MulticastSocketClient {
 
     }
 
+    private static boolean setTimeoutReadRecognizeNick(MulticastSocket clientSocket, boolean setTimeoutFlag, int timeoutMillis) {
+        boolean timeoutPassed = false;
+        if(setTimeoutFlag){
+            try {
+                clientSocket.setSoTimeout(timeoutMillis);
+            } catch (SocketException e) {
+                e.printStackTrace();
+            }
+        }
+
+        try{
+            while (true) {
+                String message = readMessage(clientSocket);
+                recognizeNICKBUSYanswer(message);
+            }
+        }
+        catch (SocketTimeoutException e) {
+            timeoutPassed = true;
+        }
+        finally {
+            return timeoutPassed;
+        }
+    }
+
     private static void inputAndCheckNick() {
         Scanner scanner = new Scanner(System.in);
         System.out.println("Please write your nick.");
@@ -56,7 +80,21 @@ public class MulticastSocketClient {
 
         myNickQuestionFlag = true;
         sendMessage("NICK " + inputNick);
-        myNick = inputNick;
+
+        boolean timeoutPassed = false;
+        try (MulticastSocket clientSocket = new MulticastSocket(PORT)){
+            //Joint the Multicast group.
+            clientSocket.joinGroup(address);
+
+            timeoutPassed = setTimeoutReadRecognizeNick(clientSocket, true, 2000); //change to 10s
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+
+        if(timeoutPassed) {
+//            myNick = inputNick;
+            System.out.println("TIMEOUT PASSED");
+        }
 
         myNickQuestionFlag = false;
     }
@@ -76,7 +114,7 @@ public class MulticastSocketClient {
         }
     }
 
-    private static void readMessage(MulticastSocket clientSocket){
+    private static String readMessage(MulticastSocket clientSocket) throws SocketTimeoutException{
         byte[] buf = new byte[256];
         // Receive the information and print it.
         DatagramPacket msgPacket = new DatagramPacket(buf, buf.length);
@@ -89,7 +127,7 @@ public class MulticastSocketClient {
         String message = new String(buf, 0, buf.length);
         System.out.println("Received msg: " + message);
 
-        recognizeCommand(message);
+        return message;
     }
 
     private static void recognizeCommand(String message) {
@@ -99,6 +137,7 @@ public class MulticastSocketClient {
     }
 
     private static void recognizeNICKBUSYanswer(String message) {
+        //message = message.trim(); <- bo timeout?
         if(message.contains("BUSY") && message.contains("NICK") && !myNickBusyAnswerFlag && message.contains(myNick)){
             System.out.println("Sorry, this nick:" + myNick + "is already occupied. Please, write different");
             myNick = null;
