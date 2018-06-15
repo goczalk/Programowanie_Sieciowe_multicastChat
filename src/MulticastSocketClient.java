@@ -20,34 +20,40 @@ public class MulticastSocketClient {
         address = InetAddress.getByName(INET_ADDR);
 
         inputAndCheckNick();
-
-//wprowadzona nazwa wysyłana jest do grupy multicastowej za pomocą polecenia (NICK nazwa)
-//i następnie każdy z programów przyłączonych uprzednio do grupy po odebraniu polecenia
-//sprawdza unikalność tej nazwy z przypisaną nazwą dla swojego użytkownika i tylko w przypadku
-//powtórzenia nazwy wysyła do grupy polecenie NICK nazwa BUSY
-
+        //finaly nick is valid
 
         Thread receivingThread = new Thread(() -> {
             try (MulticastSocket clientSocket = new MulticastSocket(PORT)){
                 //Joint the Multicast group.
                 clientSocket.joinGroup(address);
-
                 while (true) {
                     String message = readMessage(clientSocket);
-                    recognizeCommand(message);
+                    boolean isCommand = recognizeCommand(message);
+                    if(!isCommand){
+                        System.out.println(message);
+                    }
                 }
-
             } catch (IOException ex) {
                 ex.printStackTrace();
             }
         });
-
+        receivingThread.start();
 
         Thread sendingThread = new Thread(() -> {
-        });
+            try (DatagramSocket serverSocket = new DatagramSocket()) {
+                Scanner scanner = new Scanner(System.in);
+                System.out.println("Write your message: ");
 
-//        sendingThread.start();
-        receivingThread.start();
+                while(true) {
+                    String message = scanner.nextLine();
+                    sendMessage(serverSocket, "MSG " + myNick + " " + message);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        });
+        sendingThread.start();
+
 
     }
 
@@ -81,7 +87,12 @@ public class MulticastSocketClient {
         System.out.println("Your nick: " + inputNick);
 
         myNickQuestionFlag = true;
-        sendMessage("NICK " + inputNick);
+
+        try (DatagramSocket serverSocket = new DatagramSocket()) {
+            sendMessage(serverSocket, "NICK " + inputNick);
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
 
         boolean timeoutTimedOut = false;
         try (MulticastSocket clientSocket = new MulticastSocket(PORT)){
@@ -105,13 +116,11 @@ public class MulticastSocketClient {
 
 
     // Open a new DatagramSocket, which will be used to send the data.
-    private static void sendMessage(String message){
-        try (DatagramSocket serverSocket = new DatagramSocket()) {
-
-            DatagramPacket msgPacket = new DatagramPacket(message.getBytes(),
-                                    message.getBytes().length, address, PORT);
+    private static void sendMessage(DatagramSocket serverSocket, String message){
+        DatagramPacket msgPacket = new DatagramPacket(message.getBytes(),
+                                                    message.getBytes().length, address, PORT);
+        try {
             serverSocket.send(msgPacket);
-
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -119,7 +128,7 @@ public class MulticastSocketClient {
 
     private static String readMessage(MulticastSocket clientSocket) throws SocketTimeoutException {
         byte[] buf = new byte[256];
-        // Receive the information and print it.
+        // Receive the information
         DatagramPacket msgPacket = new DatagramPacket(buf, buf.length);
         try {
             clientSocket.receive(msgPacket);
@@ -130,15 +139,13 @@ public class MulticastSocketClient {
         }
 
         String message = new String(buf, 0, buf.length);
-        System.out.println("Received msg: " + message);
-
         return message;
     }
 
-    private static void recognizeCommand(String message) {
-        recognizeNICKquestion(message);
-//        recognizeNICKBUSYanswer(message);
-
+    private static boolean recognizeCommand(String message) {
+        boolean isCommand = false;
+        isCommand = recognizeNICKquestion(message);
+        return isCommand;
     }
 
     private static void recognizeNICKBUSYanswer(String message) {
@@ -150,15 +157,27 @@ public class MulticastSocketClient {
         }
     }
 
-    private static void recognizeNICKquestion(String message) {
+    /**
+     *
+     * @param message
+     * @return true if NICK command, false otherwise
+     */
+    private static boolean recognizeNICKquestion(String message) {
         if(message.contains("NICK") && !myNickQuestionFlag){
             if(message.split("NICK")[1].trim().equals(myNick)){
                 System.out.println("THIS IS MY NICK!");
 
                 String busyMessage = "NICK " + myNick + " BUSY";
                 myNickBusyAnswerFlag = true;
-                sendMessage(busyMessage);
+
+                try (DatagramSocket serverSocket = new DatagramSocket()) {
+                    sendMessage(serverSocket, busyMessage);
+                } catch (SocketException e) {
+                    e.printStackTrace();
+                }
             }
+            return true;
         }
+        return false;
     }
 }
