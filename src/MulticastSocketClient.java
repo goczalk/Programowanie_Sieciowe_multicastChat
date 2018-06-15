@@ -10,6 +10,7 @@ public class MulticastSocketClient {
     static InetAddress address;
 
     static String myNick;
+    static String inputNick;
     static boolean myNickQuestionFlag;
     static boolean myNickBusyAnswerFlag;
 
@@ -31,8 +32,10 @@ public class MulticastSocketClient {
                 //Joint the Multicast group.
                 clientSocket.joinGroup(address);
 
-                String message = readMessage(clientSocket);
-                recognizeCommand(message);
+                while (true) {
+                    String message = readMessage(clientSocket);
+                    recognizeCommand(message);
+                }
 
             } catch (IOException ex) {
                 ex.printStackTrace();
@@ -48,14 +51,13 @@ public class MulticastSocketClient {
 
     }
 
-    private static boolean setTimeoutReadRecognizeNick(MulticastSocket clientSocket, boolean setTimeoutFlag, int timeoutMillis) {
-        boolean timeoutPassed = false;
-        if(setTimeoutFlag){
-            try {
-                clientSocket.setSoTimeout(timeoutMillis);
-            } catch (SocketException e) {
-                e.printStackTrace();
-            }
+    private static boolean setTimeoutReadRecognizeNick(MulticastSocket clientSocket, int timeoutMillis) {
+        boolean timeoutTimedOut = false;
+
+        try {
+            clientSocket.setSoTimeout(timeoutMillis);
+        } catch (SocketException e) {
+            e.printStackTrace();
         }
 
         try{
@@ -65,35 +67,37 @@ public class MulticastSocketClient {
             }
         }
         catch (SocketTimeoutException e) {
-            timeoutPassed = true;
+            timeoutTimedOut = true;
         }
         finally {
-            return timeoutPassed;
+            return timeoutTimedOut;
         }
     }
 
     private static void inputAndCheckNick() {
         Scanner scanner = new Scanner(System.in);
         System.out.println("Please write your nick.");
-        String inputNick = scanner.next();
+        inputNick = scanner.next();
         System.out.println("Your nick: " + inputNick);
 
         myNickQuestionFlag = true;
         sendMessage("NICK " + inputNick);
 
-        boolean timeoutPassed = false;
+        boolean timeoutTimedOut = false;
         try (MulticastSocket clientSocket = new MulticastSocket(PORT)){
             //Joint the Multicast group.
             clientSocket.joinGroup(address);
 
-            timeoutPassed = setTimeoutReadRecognizeNick(clientSocket, true, 2000); //change to 10s
+            //TODO: change timeout to 10s from 2s.
+            //TODO: (BUG) when new user added on other user's timeout -> two users with same nick
+            timeoutTimedOut = setTimeoutReadRecognizeNick(clientSocket, 2000); //change to 10s
         } catch (IOException ex) {
             ex.printStackTrace();
         }
 
-        if(timeoutPassed) {
-//            myNick = inputNick;
-            System.out.println("TIMEOUT PASSED");
+        if(timeoutTimedOut) {
+            System.out.println("Timeout passed. Your nick is: " + inputNick);
+            myNick = inputNick;
         }
 
         myNickQuestionFlag = false;
@@ -103,23 +107,24 @@ public class MulticastSocketClient {
     // Open a new DatagramSocket, which will be used to send the data.
     private static void sendMessage(String message){
         try (DatagramSocket serverSocket = new DatagramSocket()) {
-//            if(myNick == null){
+
             DatagramPacket msgPacket = new DatagramPacket(message.getBytes(),
                                     message.getBytes().length, address, PORT);
             serverSocket.send(msgPacket);
 
-//            myNickQuestionFlag = true;
         } catch (IOException e) {
             e.printStackTrace();
         }
     }
 
-    private static String readMessage(MulticastSocket clientSocket) throws SocketTimeoutException{
+    private static String readMessage(MulticastSocket clientSocket) throws SocketTimeoutException {
         byte[] buf = new byte[256];
         // Receive the information and print it.
         DatagramPacket msgPacket = new DatagramPacket(buf, buf.length);
         try {
             clientSocket.receive(msgPacket);
+        } catch (SocketTimeoutException e){
+          throw new SocketTimeoutException(); //because IOException is more general!
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -132,16 +137,15 @@ public class MulticastSocketClient {
 
     private static void recognizeCommand(String message) {
         recognizeNICKquestion(message);
-        recognizeNICKBUSYanswer(message);
+//        recognizeNICKBUSYanswer(message);
 
     }
 
     private static void recognizeNICKBUSYanswer(String message) {
-        //message = message.trim(); <- bo timeout?
-        if(message.contains("BUSY") && message.contains("NICK") && !myNickBusyAnswerFlag && message.contains(myNick)){
-            System.out.println("Sorry, this nick:" + myNick + "is already occupied. Please, write different");
+        if(message.contains("BUSY") && message.contains("NICK") && !myNickBusyAnswerFlag && message.contains(inputNick)){
+            System.out.println("Sorry, this nick: " + inputNick + " is already occupied. Try again.");
             myNick = null;
-
+            inputNick = null;
             inputAndCheckNick();
         }
     }
@@ -158,27 +162,3 @@ public class MulticastSocketClient {
         }
     }
 }
-
-//
-//        // Create a buffer of bytes, which will be used to store
-//        // the incoming bytes containing the information from the server.
-//        // Since the message is small here, 256 bytes should be enough.
-//        byte[] buf = new byte[256];
-//
-//        // Create a new Multicast socket (that will allow other sockets/programs
-//        // to join it as well.
-//        try (MulticastSocket clientSocket = new MulticastSocket(PORT)){
-//            //Joint the Multicast group.
-//            clientSocket.joinGroup(address);
-//
-//            while (true) {
-//                // Receive the information and print it.
-//                DatagramPacket msgPacket = new DatagramPacket(buf, buf.length);
-//                clientSocket.receive(msgPacket);
-//
-//                String msg = new String(buf, 0, buf.length);
-//                System.out.println("Socket 1 received msg: " + msg);
-//            }
-//        } catch (IOException ex) {
-//            ex.printStackTrace();
-//        }
