@@ -21,7 +21,6 @@ public class MulticastSocketClient {
         address = InetAddress.getByName(INET_ADDR);
 
         inputAndCheckNick();
-        //finaly nick is valid
         inputRoomAndSendJOIN();
 
         Thread receivingThread = new Thread(() -> {
@@ -155,10 +154,31 @@ public class MulticastSocketClient {
         return message;
     }
 
+    /**
+     *
+     * @param message
+     * @return true if is command, false otherwise
+     */
     private static boolean recognizeCommand(String message) {
         boolean isCommand = false;
-        isCommand = recognizeNICKquestion(message);
+        if(recognizeNICKquestion(message)){
+            isCommand = true;
+        }
+        else if(recognizeJOINcommand(message)){
+            isCommand = true;
+        }
         return isCommand;
+    }
+
+    private static boolean recognizeJOINcommand(String message) {
+        if(message.contains("JOIN")){
+            String[] partsOfCommand = message.split(" ");
+            if(partsOfCommand[1].trim().equals(myRoom)){
+                System.out.println(partsOfCommand[2] + " just joined your room!");
+            }
+            return true;
+        }
+        return false;
     }
 
     private static void recognizeNICKBUSYanswer(String message) {
