@@ -15,17 +15,12 @@ public class MulticastSocketClient {
     private static boolean myNickQuestionFlag;
     private static boolean myNickBusyAnswerFlag;
 
-    //    loopback
     public static void main(String[] args) throws UnknownHostException {
         // Get the address that we are going to connect to.
         address = InetAddress.getByName(INET_ADDR);
 
         inputAndCheckNick();
         inputRoomAndSendJOIN();
-
-//TODO
-//        changing room: tez dostajesz wiadomosc, ze ktos jest w twoim pokoju -> flagi
-//  dostaje sie wiadomosc LEFT z innego niz twoj pokoju
 
         Thread receivingThread = new Thread(() -> {
             try (MulticastSocket clientSocket = new MulticastSocket(PORT)) {
@@ -166,23 +161,42 @@ public class MulticastSocketClient {
      */
     private static boolean recognizeCommand(String message) {
         boolean isCommand = false;
-        if (recognizeNICKquestion(message) || recognizeJOINcommand(message)) {
+        if (recognizeNICKquestion(message) || recognizeJOINcommand(message) || recognizeLEFTcommand(message)) {
             isCommand = true;
-//        }
-//        else if(recognizeJOINcommand(message)){
-//            isCommand = true;
-//        }
-//        else if(recognizeEXITcommand(message)){
-//            isCommand = true;
         }
         return isCommand;
     }
 
+    /**
+     * @param message
+     * @return true if LEFT command, false otherwise
+     */
+    private static boolean recognizeLEFTcommand(String message) {
+        if (message.contains("LEFT")) {
+            //not your LEFT command
+            if(!message.contains(myNick)) {
+                if(message.contains(myRoom)){
+                    String[] partsOfCommand = message.split(" ");
+                    System.out.println(partsOfCommand[2] + " just left your room.");
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * @param message
+     * @return true if JOIN command, false otherwise
+     */
     private static boolean recognizeJOINcommand(String message) {
         if (message.contains("JOIN")) {
-            String[] partsOfCommand = message.split(" ");
-            if (partsOfCommand[1].trim().equals(myRoom)) {
-                System.out.println(partsOfCommand[2] + " just joined your room!");
+            //rejoining other room, do not print JOIN message about yourself
+            if(!message.contains(myNick)) {
+                String[] partsOfCommand = message.split(" ");
+                if (partsOfCommand[1].trim().equals(myRoom)) {
+                    System.out.println(partsOfCommand[2] + " just joined your room!");
+                }
             }
             return true;
         }
