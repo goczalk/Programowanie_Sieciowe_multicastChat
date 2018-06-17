@@ -9,18 +9,20 @@ public class MulticastSocketClient {
 
     static InetAddress address;
 
-    static String myNick;
-    static String inputNick;
-    static boolean myNickQuestionFlag;
-    static boolean myNickBusyAnswerFlag;
+    private static String myNick;
+    private static String myRoom;
+    private static String inputNick;
+    private static boolean myNickQuestionFlag;
+    private static boolean myNickBusyAnswerFlag;
 
-//    loopback
+    //    loopback
     public static void main(String[] args) throws UnknownHostException {
         // Get the address that we are going to connect to.
         address = InetAddress.getByName(INET_ADDR);
 
         inputAndCheckNick();
         //finaly nick is valid
+        inputRoomAndSendJOIN();
 
         Thread receivingThread = new Thread(() -> {
             try (MulticastSocket clientSocket = new MulticastSocket(PORT)){
@@ -57,6 +59,18 @@ public class MulticastSocketClient {
 
     }
 
+    private static void inputRoomAndSendJOIN() {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Please write name of the room you want to join.");
+        myRoom = scanner.next();
+
+        try (DatagramSocket serverSocket = new DatagramSocket()) {
+            sendMessage(serverSocket, "JOIN " + myRoom + " " + myNick);
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
+    }
+
     private static boolean setTimeoutReadRecognizeNick(MulticastSocket clientSocket, int timeoutMillis) {
         boolean timeoutTimedOut = false;
 
@@ -84,7 +98,6 @@ public class MulticastSocketClient {
         Scanner scanner = new Scanner(System.in);
         System.out.println("Please write your nick.");
         inputNick = scanner.next();
-        System.out.println("Your nick: " + inputNick);
 
         myNickQuestionFlag = true;
 
