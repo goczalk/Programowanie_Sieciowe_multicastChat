@@ -30,7 +30,7 @@ public class MulticastSocketClient {
                     String message = readMessage(clientSocket);
                     boolean isCommand = recognizeCommand(message);
                     if (!isCommand) {
-                        System.out.println(message);
+                        printMessage(message);
                     }
                 }
             } catch (IOException ex) {
@@ -46,7 +46,7 @@ public class MulticastSocketClient {
                 while (true) {
                     String message = scanner.nextLine();
                     if(!recognizeEXITcommand(message)) {
-                        sendMessage(serverSocket, "MSG " + myNick + " " + message);
+                        sendMessage(serverSocket, "MSG " + myNick + " " + myRoom + " " + message);
                     }
                 }
             } catch (IOException e) {
@@ -56,6 +56,17 @@ public class MulticastSocketClient {
         sendingThread.start();
 
 
+    }
+
+    private static void printMessage(String message) {
+        String[] partsOfMsg = message.split(" ");
+        if(partsOfMsg[2].equals(myRoom)){
+            System.out.print(partsOfMsg[1]+ ": ");
+            for (int i = 3; i < partsOfMsg.length; i++) {
+                System.out.print(partsOfMsg[i] + " ");
+            }
+            System.out.println();
+        }
     }
 
     private static void inputRoomAndSendJOIN() {
