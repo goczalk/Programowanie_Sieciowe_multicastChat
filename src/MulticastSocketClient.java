@@ -23,14 +23,18 @@ public class MulticastSocketClient {
         inputAndCheckNick();
         inputRoomAndSendJOIN();
 
+//TODO
+//        changing room: tez dostajesz wiadomosc, ze ktos jest w twoim pokoju -> flagi
+//  dostaje sie wiadomosc LEFT z innego niz twoj pokoju
+
         Thread receivingThread = new Thread(() -> {
-            try (MulticastSocket clientSocket = new MulticastSocket(PORT)){
+            try (MulticastSocket clientSocket = new MulticastSocket(PORT)) {
                 //Joint the Multicast group.
                 clientSocket.joinGroup(address);
                 while (true) {
                     String message = readMessage(clientSocket);
                     boolean isCommand = recognizeCommand(message);
-                    if(!isCommand){
+                    if (!isCommand) {
                         System.out.println(message);
                     }
                 }
@@ -43,11 +47,12 @@ public class MulticastSocketClient {
         Thread sendingThread = new Thread(() -> {
             try (DatagramSocket serverSocket = new DatagramSocket()) {
                 Scanner scanner = new Scanner(System.in);
-                System.out.println("Write your message: ");
 
-                while(true) {
+                while (true) {
                     String message = scanner.nextLine();
-                    sendMessage(serverSocket, "MSG " + myNick + " " + message);
+                    if(!recognizeEXITcommand(message)) {
+                        sendMessage(serverSocket, "MSG " + myNick + " " + message);
+                    }
                 }
             } catch (IOException e) {
                 e.printStackTrace();
@@ -68,6 +73,9 @@ public class MulticastSocketClient {
         } catch (SocketException e) {
             e.printStackTrace();
         }
+
+        System.out.println("Anytime you want to exit the room, type: EXIT " + myRoom);
+        System.out.println("Write your message: ");
     }
 
     private static boolean setTimeoutReadRecognizeNick(MulticastSocket clientSocket, int timeoutMillis) {
@@ -79,16 +87,14 @@ public class MulticastSocketClient {
             e.printStackTrace();
         }
 
-        try{
+        try {
             while (true) {
                 String message = readMessage(clientSocket);
                 recognizeNICKBUSYanswer(message);
             }
-        }
-        catch (SocketTimeoutException e) {
+        } catch (SocketTimeoutException e) {
             timeoutTimedOut = true;
-        }
-        finally {
+        } finally {
             return timeoutTimedOut;
         }
     }
@@ -107,7 +113,7 @@ public class MulticastSocketClient {
         }
 
         boolean timeoutTimedOut = false;
-        try (MulticastSocket clientSocket = new MulticastSocket(PORT)){
+        try (MulticastSocket clientSocket = new MulticastSocket(PORT)) {
             //Joint the Multicast group.
             clientSocket.joinGroup(address);
 
@@ -118,7 +124,7 @@ public class MulticastSocketClient {
             ex.printStackTrace();
         }
 
-        if(timeoutTimedOut) {
+        if (timeoutTimedOut) {
             System.out.println("Timeout passed. Your nick is: " + inputNick);
             myNick = inputNick;
         }
@@ -128,9 +134,9 @@ public class MulticastSocketClient {
 
 
     // Open a new DatagramSocket, which will be used to send the data.
-    private static void sendMessage(DatagramSocket serverSocket, String message){
+    private static void sendMessage(DatagramSocket serverSocket, String message) {
         DatagramPacket msgPacket = new DatagramPacket(message.getBytes(),
-                                                    message.getBytes().length, address, PORT);
+                message.getBytes().length, address, PORT);
         try {
             serverSocket.send(msgPacket);
         } catch (IOException e) {
@@ -144,8 +150,8 @@ public class MulticastSocketClient {
         DatagramPacket msgPacket = new DatagramPacket(buf, buf.length);
         try {
             clientSocket.receive(msgPacket);
-        } catch (SocketTimeoutException e){
-          throw new SocketTimeoutException(); //because IOException is more general!
+        } catch (SocketTimeoutException e) {
+            throw new SocketTimeoutException(); //because IOException is more general!
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -155,25 +161,27 @@ public class MulticastSocketClient {
     }
 
     /**
-     *
      * @param message
      * @return true if is command, false otherwise
      */
     private static boolean recognizeCommand(String message) {
         boolean isCommand = false;
-        if(recognizeNICKquestion(message)){
+        if (recognizeNICKquestion(message) || recognizeJOINcommand(message)) {
             isCommand = true;
-        }
-        else if(recognizeJOINcommand(message)){
-            isCommand = true;
+//        }
+//        else if(recognizeJOINcommand(message)){
+//            isCommand = true;
+//        }
+//        else if(recognizeEXITcommand(message)){
+//            isCommand = true;
         }
         return isCommand;
     }
 
     private static boolean recognizeJOINcommand(String message) {
-        if(message.contains("JOIN")){
+        if (message.contains("JOIN")) {
             String[] partsOfCommand = message.split(" ");
-            if(partsOfCommand[1].trim().equals(myRoom)){
+            if (partsOfCommand[1].trim().equals(myRoom)) {
                 System.out.println(partsOfCommand[2] + " just joined your room!");
             }
             return true;
@@ -182,7 +190,7 @@ public class MulticastSocketClient {
     }
 
     private static void recognizeNICKBUSYanswer(String message) {
-        if(message.contains("BUSY") && message.contains("NICK") && !myNickBusyAnswerFlag && message.contains(inputNick)){
+        if (message.contains("BUSY") && message.contains("NICK") && !myNickBusyAnswerFlag && message.contains(inputNick)) {
             System.out.println("Sorry, this nick: " + inputNick + " is already occupied. Try again.");
             myNick = null;
             inputNick = null;
@@ -191,13 +199,12 @@ public class MulticastSocketClient {
     }
 
     /**
-     *
      * @param message
      * @return true if NICK command, false otherwise
      */
     private static boolean recognizeNICKquestion(String message) {
-        if(message.contains("NICK") && !myNickQuestionFlag){
-            if(message.split("NICK")[1].trim().equals(myNick)){
+        if (message.contains("NICK") && !myNickQuestionFlag) {
+            if (message.split("NICK")[1].trim().equals(myNick)) {
                 System.out.println("THIS IS MY NICK!");
 
                 String busyMessage = "NICK " + myNick + " BUSY";
@@ -209,6 +216,28 @@ public class MulticastSocketClient {
                     e.printStackTrace();
                 }
             }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * @param message
+     * @return true if EXIT command, false otherwise
+     */
+    private static boolean recognizeEXITcommand(String message) {
+        if(message.contains("EXIT") && message.contains(myRoom)){
+            System.out.println("You have just left room: " + myRoom);
+
+            try (DatagramSocket serverSocket = new DatagramSocket()) {
+                sendMessage(serverSocket, "LEFT " + myRoom + " " + myNick);
+            } catch (SocketException e) {
+                e.printStackTrace();
+            }
+
+            myRoom = null;
+            inputRoomAndSendJOIN();
+
             return true;
         }
         return false;
