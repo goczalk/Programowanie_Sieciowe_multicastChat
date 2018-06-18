@@ -22,7 +22,7 @@ public class MulticastSocketClient {
         // Get the address that we are going to connect to.
         address = InetAddress.getByName(INET_ADDR);
 
-        while(busyNick) {
+        while (busyNick) {
             inputAndCheckNick();
         }
 
@@ -64,136 +64,6 @@ public class MulticastSocketClient {
 
     }
 
-    /**
-     *
-     * @param message
-     * @return true if input was command to execute, not message; false otherwise
-     */
-    private static boolean recognizeInput(String message) {
-        boolean isCommand = false;
-        if (recognizeEXITcommand(message) || recognizeWHOISinput(message)) {
-            isCommand = true;
-        }
-        return isCommand;
-    }
-
-    /**
-     *
-     * @param message
-     * @return true is WHOIS command, false otherwise
-     */
-    private static boolean recognizeWHOISinput(String message) {
-        if (message.contains("WHOIS")) {
-            System.out.println("Wait, collecting data...");
-            sendWhoIsQuestionAndWaitForAnswer();
-            return true;
-        }
-        return false;
-    }
-
-    private static void sendWhoIsQuestionAndWaitForAnswer() {
-        myWhoIsQuestion = true;
-
-        try (DatagramSocket serverSocket = new DatagramSocket()) {
-            sendMessage(serverSocket, "WHOIS " + myRoom);
-        } catch (SocketException e) {
-            e.printStackTrace();
-        }
-
-        boolean timeoutTimedOut = false;
-        try (MulticastSocket clientSocket = new MulticastSocket(PORT)) {
-            clientSocket.joinGroup(address);
-
-            //TODO check if user can send input
-            timeoutTimedOut = setTimeoutReadRoomCommandColectUsers(clientSocket, 2000);
-        } catch (IOException ex) {
-            ex.printStackTrace();
-        }
-
-        if (timeoutTimedOut) {
-            System.out.println("In your room there is: " + allUsersInMyRoom);
-        }
-
-        myWhoIsQuestion = false;
-        allUsersInMyRoom = null;
-    }
-
-    private static boolean setTimeoutReadRoomCommandColectUsers(MulticastSocket clientSocket, int timeoutMillis) {
-        boolean timeoutTimedOut = false;
-
-        try {
-            clientSocket.setSoTimeout(timeoutMillis);
-        } catch (SocketException e) {
-            e.printStackTrace();
-        }
-
-        try {
-            while (true) {
-                String message = readMessage(clientSocket);
-                recognizeROOMcommandAppendAllUsers(message);
-            }
-        } catch (SocketTimeoutException e) {
-            timeoutTimedOut = true;
-        } finally {
-            return timeoutTimedOut;
-        }
-    }
-
-    private static void printMessage(String message) {
-        String[] partsOfMsg = message.split(" ");
-        if(partsOfMsg[2].equals(myRoom)){
-            System.out.print(partsOfMsg[1]+ ": ");
-            for (int i = 3; i < partsOfMsg.length; i++) {
-                System.out.print(partsOfMsg[i] + " ");
-            }
-            System.out.println();
-        }
-    }
-
-    private static void inputRoomAndSendJOIN() {
-        Scanner scanner = new Scanner(System.in);
-        System.out.println("Please write name of the room you want to join.");
-        myRoom = scanner.next();
-
-        try (DatagramSocket serverSocket = new DatagramSocket()) {
-            sendMessage(serverSocket, "JOIN " + myRoom + " " + myNick);
-        } catch (SocketException e) {
-            e.printStackTrace();
-        }
-
-        System.out.println("To exit the room, type: EXIT " + myRoom);
-        System.out.println("To get info who is in the room, type: WHOIS");
-        System.out.println("Write your message: ");
-    }
-
-    private static boolean setTimeoutReadRecognizeNick(MulticastSocket clientSocket, int timeoutMillis) {
-        boolean timeoutTimedOut = false;
-
-        try {
-            clientSocket.setSoTimeout(timeoutMillis);
-        } catch (SocketException e) {
-            e.printStackTrace();
-        }
-
-        boolean nickIsBusy;
-        try {
-            while (true) {
-                String message = readMessage(clientSocket);
-                nickIsBusy = recognizeNICKBUSYanswer(message);
-                if(nickIsBusy){
-                    break;
-                }
-            }
-        } catch (SocketTimeoutException e) {
-            nickIsBusy = false;
-
-            if(!nickIsBusy) {
-                timeoutTimedOut = true;
-            }
-        } finally {
-            return timeoutTimedOut;
-        }
-    }
 
     private static void inputAndCheckNick() {
         Scanner scanner = new Scanner(System.in);
@@ -230,15 +100,30 @@ public class MulticastSocketClient {
         myNickQuestionFlag = false;
     }
 
+    private static void inputRoomAndSendJOIN() {
+        Scanner scanner = new Scanner(System.in);
+        System.out.println("Please write name of the room you want to join.");
+        myRoom = scanner.next();
 
-    // Open a new DatagramSocket, which will be used to send the data.
-    private static void sendMessage(DatagramSocket serverSocket, String message) {
-        DatagramPacket msgPacket = new DatagramPacket(message.getBytes(),
-                message.getBytes().length, address, PORT);
-        try {
-            serverSocket.send(msgPacket);
-        } catch (IOException e) {
+        try (DatagramSocket serverSocket = new DatagramSocket()) {
+            sendMessage(serverSocket, "JOIN " + myRoom + " " + myNick);
+        } catch (SocketException e) {
             e.printStackTrace();
+        }
+
+        System.out.println("To exit the room, type: EXIT " + myRoom);
+        System.out.println("To get info who is in the room, type: WHOIS");
+        System.out.println("Write your message: ");
+    }
+
+    private static void printMessage(String message) {
+        String[] partsOfMsg = message.split(" ");
+        if (partsOfMsg[2].equals(myRoom)) {
+            System.out.print(partsOfMsg[1] + ": ");
+            for (int i = 3; i < partsOfMsg.length; i++) {
+                System.out.print(partsOfMsg[i] + " ");
+            }
+            System.out.println();
         }
     }
 
@@ -260,6 +145,28 @@ public class MulticastSocketClient {
 
     /**
      * @param message
+     * @return true if EXIT command, false otherwise
+     */
+    private static boolean recognizeEXITcommand(String message) {
+        if (message.contains("EXIT") && message.contains(myRoom)) {
+            System.out.println("You have just left room: " + myRoom);
+
+            try (DatagramSocket serverSocket = new DatagramSocket()) {
+                sendMessage(serverSocket, "LEFT " + myRoom + " " + myNick);
+            } catch (SocketException e) {
+                e.printStackTrace();
+            }
+
+            myRoom = null;
+            inputRoomAndSendJOIN();
+
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * @param message
      * @return true if is command, false otherwise
      */
     private static boolean recognizeCommand(String message) {
@@ -273,42 +180,27 @@ public class MulticastSocketClient {
 
     /**
      * @param message
-     * @return true if ROOM command, false otherwise
+     * @return true if input was command to execute, not message; false otherwise
      */
-    private static boolean recognizeROOMcommand(String message) {
-        if (message.contains("ROOM")) {
-            return true;
+    private static boolean recognizeInput(String message) {
+        boolean isCommand = false;
+        if (recognizeEXITcommand(message) || recognizeWHOISinput(message)) {
+            isCommand = true;
         }
-        return false;
-    }
-
-    private static boolean recognizeROOMcommandAppendAllUsers(String message) {
-        if (recognizeROOMcommand(message)) {
-            if(myWhoIsQuestion) {
-                String userName = message.split(" ")[2];
-                if(allUsersInMyRoom == null){
-                    allUsersInMyRoom = userName;
-                }
-                else{
-                    allUsersInMyRoom += ", " + userName;
-                }
-            }
-            return true;
-        }
-        return false;
+        return isCommand;
     }
 
     /**
      * @param message
-     * @return true if WHOIS command, false otherwise
+     * @return true if JOIN command, false otherwise
      */
-    private static boolean recognizeWHOIScommand(String message) {
-        if (message.contains("WHOIS")) {
-            if(message.split(" ")[1].trim().equals(myRoom)) {
-                try (DatagramSocket serverSocket = new DatagramSocket()) {
-                    sendMessage(serverSocket, "ROOM " + myRoom + " " + myNick );
-                } catch (SocketException e) {
-                    e.printStackTrace();
+    private static boolean recognizeJOINcommand(String message) {
+        if (message.contains("JOIN")) {
+            //rejoining other room, do not print JOIN message about yourself
+            if (!message.contains(myNick)) {
+                String[] partsOfCommand = message.split(" ");
+                if (partsOfCommand[1].trim().equals(myRoom)) {
+                    System.out.println(partsOfCommand[2] + " just joined your room!");
                 }
             }
             return true;
@@ -323,8 +215,8 @@ public class MulticastSocketClient {
     private static boolean recognizeLEFTcommand(String message) {
         if (message.contains("LEFT")) {
             //not your LEFT command
-            if(!message.contains(myNick)) {
-                if(message.contains(myRoom)){
+            if (!message.contains(myNick)) {
+                if (message.contains(myRoom)) {
                     String[] partsOfCommand = message.split(" ");
                     System.out.println(partsOfCommand[2] + " just left your room.");
                 }
@@ -335,25 +227,6 @@ public class MulticastSocketClient {
     }
 
     /**
-     * @param message
-     * @return true if JOIN command, false otherwise
-     */
-    private static boolean recognizeJOINcommand(String message) {
-        if (message.contains("JOIN")) {
-            //rejoining other room, do not print JOIN message about yourself
-            if(!message.contains(myNick)) {
-                String[] partsOfCommand = message.split(" ");
-                if (partsOfCommand[1].trim().equals(myRoom)) {
-                    System.out.println(partsOfCommand[2] + " just joined your room!");
-                }
-            }
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     *
      * @param message
      * @return true if nick is busy, false otherwise
      */
@@ -393,23 +266,147 @@ public class MulticastSocketClient {
 
     /**
      * @param message
-     * @return true if EXIT command, false otherwise
+     * @return true if ROOM command, false otherwise
      */
-    private static boolean recognizeEXITcommand(String message) {
-        if(message.contains("EXIT") && message.contains(myRoom)){
-            System.out.println("You have just left room: " + myRoom);
-
-            try (DatagramSocket serverSocket = new DatagramSocket()) {
-                sendMessage(serverSocket, "LEFT " + myRoom + " " + myNick);
-            } catch (SocketException e) {
-                e.printStackTrace();
-            }
-
-            myRoom = null;
-            inputRoomAndSendJOIN();
-
+    private static boolean recognizeROOMcommand(String message) {
+        if (message.contains("ROOM")) {
             return true;
         }
         return false;
     }
+
+    private static boolean recognizeROOMcommandAppendAllUsers(String message) {
+        if (recognizeROOMcommand(message)) {
+            if (myWhoIsQuestion) {
+                String userName = message.split(" ")[2];
+                if (allUsersInMyRoom == null) {
+                    allUsersInMyRoom = userName;
+                } else {
+                    allUsersInMyRoom += ", " + userName;
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * @param message
+     * @return true if WHOIS command, false otherwise
+     */
+    private static boolean recognizeWHOIScommand(String message) {
+        if (message.contains("WHOIS")) {
+            if (message.split(" ")[1].trim().equals(myRoom)) {
+                try (DatagramSocket serverSocket = new DatagramSocket()) {
+                    sendMessage(serverSocket, "ROOM " + myRoom + " " + myNick);
+                } catch (SocketException e) {
+                    e.printStackTrace();
+                }
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * @param message
+     * @return true is WHOIS command, false otherwise
+     */
+    private static boolean recognizeWHOISinput(String message) {
+        if (message.contains("WHOIS")) {
+            System.out.println("Wait, collecting data...");
+            sendWhoIsQuestionAndWaitForAnswer();
+            return true;
+        }
+        return false;
+    }
+
+    // Open a new DatagramSocket, which will be used to send the data.
+    private static void sendMessage(DatagramSocket serverSocket, String message) {
+        DatagramPacket msgPacket = new DatagramPacket(message.getBytes(),
+                message.getBytes().length, address, PORT);
+        try {
+            serverSocket.send(msgPacket);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void sendWhoIsQuestionAndWaitForAnswer() {
+        myWhoIsQuestion = true;
+
+        try (DatagramSocket serverSocket = new DatagramSocket()) {
+            sendMessage(serverSocket, "WHOIS " + myRoom);
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
+
+        boolean timeoutTimedOut = false;
+        try (MulticastSocket clientSocket = new MulticastSocket(PORT)) {
+            clientSocket.joinGroup(address);
+
+            //TODO check if user can send input
+            timeoutTimedOut = setTimeoutReadRoomCommandColectUsers(clientSocket, 2000);
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
+
+        if (timeoutTimedOut) {
+            System.out.println("In your room there is: " + allUsersInMyRoom);
+        }
+
+        myWhoIsQuestion = false;
+        allUsersInMyRoom = null;
+    }
+
+    private static boolean setTimeoutReadRecognizeNick(MulticastSocket clientSocket, int timeoutMillis) {
+        boolean timeoutTimedOut = false;
+
+        try {
+            clientSocket.setSoTimeout(timeoutMillis);
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
+
+        boolean nickIsBusy;
+        try {
+            while (true) {
+                String message = readMessage(clientSocket);
+                nickIsBusy = recognizeNICKBUSYanswer(message);
+                if (nickIsBusy) {
+                    break;
+                }
+            }
+        } catch (SocketTimeoutException e) {
+            nickIsBusy = false;
+
+            if (!nickIsBusy) {
+                timeoutTimedOut = true;
+            }
+        } finally {
+            return timeoutTimedOut;
+        }
+    }
+
+    private static boolean setTimeoutReadRoomCommandColectUsers(MulticastSocket clientSocket, int timeoutMillis) {
+        boolean timeoutTimedOut = false;
+
+        try {
+            clientSocket.setSoTimeout(timeoutMillis);
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
+
+        try {
+            while (true) {
+                String message = readMessage(clientSocket);
+                recognizeROOMcommandAppendAllUsers(message);
+            }
+        } catch (SocketTimeoutException e) {
+            timeoutTimedOut = true;
+        } finally {
+            return timeoutTimedOut;
+        }
+    }
+
 }
