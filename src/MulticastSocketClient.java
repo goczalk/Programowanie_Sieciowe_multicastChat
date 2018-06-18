@@ -116,6 +116,36 @@ public class MulticastSocketClient {
         System.out.println("Write your message: ");
     }
 
+    private static String getFirstPartOfSplittedBySpace(String message){
+        String msg;
+        try {
+            msg = message.split(" ")[0].trim();
+        } catch (ArrayIndexOutOfBoundsException e){
+            return "";
+        }
+        return msg;
+    }
+
+    private static String getSecondPartOfSplittedBySpace(String message){
+        String msg;
+        try {
+            msg = message.split(" ")[1].trim();
+        } catch (ArrayIndexOutOfBoundsException e){
+            return "";
+        }
+        return msg;
+    }
+
+    private static String getThirdPartOfSplittedBySpace(String message){
+        String msg;
+        try {
+            msg = message.split(" ")[2].trim();
+        } catch (ArrayIndexOutOfBoundsException e){
+            return "";
+        }
+        return msg;
+    }
+
     private static void printMessage(String message) {
         String[] partsOfMsg = message.split(" ");
         if (partsOfMsg[2].equals(myRoom)) {
@@ -148,7 +178,7 @@ public class MulticastSocketClient {
      * @return true if EXIT command, false otherwise
      */
     private static boolean recognizeEXITcommand(String message) {
-        if (message.contains("EXIT") && message.contains(myRoom)) {
+        if (getFirstPartOfSplittedBySpace(message).equals("EXIT") && getSecondPartOfSplittedBySpace(message).equals(myRoom)) {
             System.out.println("You have just left room: " + myRoom);
 
             try (DatagramSocket serverSocket = new DatagramSocket()) {
@@ -195,7 +225,7 @@ public class MulticastSocketClient {
      * @return true if JOIN command, false otherwise
      */
     private static boolean recognizeJOINcommand(String message) {
-        if (message.contains("JOIN")) {
+        if (getFirstPartOfSplittedBySpace(message).equals("JOIN")) {
             //rejoining other room, do not print JOIN message about yourself
             if (!message.contains(myNick)) {
                 String[] partsOfCommand = message.split(" ");
@@ -213,10 +243,10 @@ public class MulticastSocketClient {
      * @return true if LEFT command, false otherwise
      */
     private static boolean recognizeLEFTcommand(String message) {
-        if (message.contains("LEFT")) {
+        if (getFirstPartOfSplittedBySpace(message).equals("LEFT")) {
             //not your LEFT command
             if (!message.contains(myNick)) {
-                if (message.contains(myRoom)) {
+                if (getSecondPartOfSplittedBySpace(message).equals(myRoom)) {
                     String[] partsOfCommand = message.split(" ");
                     System.out.println(partsOfCommand[2] + " just left your room.");
                 }
@@ -231,7 +261,9 @@ public class MulticastSocketClient {
      * @return true if nick is busy, false otherwise
      */
     private static boolean recognizeNICKBUSYanswer(String message) {
-        if (message.contains("BUSY") && message.contains("NICK") && !myNickBusyAnswerFlag && message.contains(inputNick)) {
+        if (getFirstPartOfSplittedBySpace(message).equals("NICK") && !myNickBusyAnswerFlag
+                && getSecondPartOfSplittedBySpace(message).equals(inputNick) &&
+                getThirdPartOfSplittedBySpace(message).equals("BUSY")) {
             System.out.println("Sorry, this nick: " + inputNick + " is already occupied. Try again.");
             myNick = null;
             inputNick = null;
@@ -246,8 +278,8 @@ public class MulticastSocketClient {
      * @return true if NICK command, false otherwise
      */
     private static boolean recognizeNICKquestion(String message) {
-        if (message.contains("NICK") && !myNickQuestionFlag) {
-            if (message.split("NICK")[1].trim().equals(myNick)) {
+        if (getFirstPartOfSplittedBySpace(message).equals("NICK") && !myNickQuestionFlag) {
+            if (getSecondPartOfSplittedBySpace(message).equals(myNick)) {
 //                System.out.println("THIS IS MY NICK!");
 
                 String busyMessage = "NICK " + myNick + " BUSY";
@@ -269,7 +301,7 @@ public class MulticastSocketClient {
      * @return true if ROOM command, false otherwise
      */
     private static boolean recognizeROOMcommand(String message) {
-        if (message.contains("ROOM")) {
+        if (getFirstPartOfSplittedBySpace(message).equals("ROOM")) {
             return true;
         }
         return false;
@@ -295,8 +327,8 @@ public class MulticastSocketClient {
      * @return true if WHOIS command, false otherwise
      */
     private static boolean recognizeWHOIScommand(String message) {
-        if (message.contains("WHOIS")) {
-            if (message.split(" ")[1].trim().equals(myRoom)) {
+        if (getFirstPartOfSplittedBySpace(message).equals("WHOIS")) {
+            if (getSecondPartOfSplittedBySpace(message).equals(myRoom)) {
                 try (DatagramSocket serverSocket = new DatagramSocket()) {
                     sendMessage(serverSocket, "ROOM " + myRoom + " " + myNick);
                 } catch (SocketException e) {
@@ -313,7 +345,7 @@ public class MulticastSocketClient {
      * @return true is WHOIS command, false otherwise
      */
     private static boolean recognizeWHOISinput(String message) {
-        if (message.contains("WHOIS")) {
+        if (getFirstPartOfSplittedBySpace(message).equals("WHOIS")) {
             System.out.println("Wait, collecting data...");
             sendWhoIsQuestionAndWaitForAnswer();
             return true;
