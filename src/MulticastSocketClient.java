@@ -16,17 +16,15 @@ public class MulticastSocketClient {
     private static boolean myNickBusyAnswerFlag;
     private static boolean myWhoIsQuestion;
     private static String allUsersInMyRoom;
+    private static boolean busyNick = true;
 
     public static void main(String[] args) throws UnknownHostException {
         // Get the address that we are going to connect to.
         address = InetAddress.getByName(INET_ADDR);
 
-//        program, o którym mowa w punkcie (a) odbiera wszystkie komunikaty ROOM i wyświetla
-//swojemu użytkownikowi zbiorczą informację o tym, kto jest przyłączony do jego pokoju.
-        //program, ktory wysłał
-
-        inputAndCheckNick();
-        inputRoomAndSendJOIN();
+        while(busyNick) {
+            inputAndCheckNick();
+        }
 
         Thread receivingThread = new Thread(() -> {
             try (MulticastSocket clientSocket = new MulticastSocket(PORT)) {
@@ -45,6 +43,8 @@ public class MulticastSocketClient {
         });
         receivingThread.start();
 
+        inputRoomAndSendJOIN();
+
         Thread sendingThread = new Thread(() -> {
             try (DatagramSocket serverSocket = new DatagramSocket()) {
                 Scanner scanner = new Scanner(System.in);
@@ -61,7 +61,6 @@ public class MulticastSocketClient {
             }
         });
         sendingThread.start();
-
 
     }
 
@@ -85,7 +84,7 @@ public class MulticastSocketClient {
      */
     private static boolean recognizeWHOISinput(String message) {
         if (message.contains("WHOIS")) {
-            System.out.println("Wait, colecting data...");
+            System.out.println("Wait, collecting data...");
             sendWhoIsQuestionAndWaitForAnswer();
             return true;
         }
@@ -176,13 +175,21 @@ public class MulticastSocketClient {
             e.printStackTrace();
         }
 
+        boolean nickIsBusy;
         try {
             while (true) {
                 String message = readMessage(clientSocket);
-                recognizeNICKBUSYanswer(message);
+                nickIsBusy = recognizeNICKBUSYanswer(message);
+                if(nickIsBusy){
+                    break;
+                }
             }
         } catch (SocketTimeoutException e) {
-            timeoutTimedOut = true;
+            nickIsBusy = false;
+
+            if(!nickIsBusy) {
+                timeoutTimedOut = true;
+            }
         } finally {
             return timeoutTimedOut;
         }
@@ -195,6 +202,7 @@ public class MulticastSocketClient {
 
         myNickQuestionFlag = true;
 
+        System.out.println("Wait, checking if your nick is unique...");
         try (DatagramSocket serverSocket = new DatagramSocket()) {
             sendMessage(serverSocket, "NICK " + inputNick);
         } catch (SocketException e) {
@@ -216,6 +224,7 @@ public class MulticastSocketClient {
         if (timeoutTimedOut) {
             System.out.println("Timeout passed. Your nick is: " + inputNick);
             myNick = inputNick;
+            busyNick = false;
         }
 
         myNickQuestionFlag = false;
@@ -343,13 +352,20 @@ public class MulticastSocketClient {
         return false;
     }
 
-    private static void recognizeNICKBUSYanswer(String message) {
+    /**
+     *
+     * @param message
+     * @return true if nick is busy, false otherwise
+     */
+    private static boolean recognizeNICKBUSYanswer(String message) {
         if (message.contains("BUSY") && message.contains("NICK") && !myNickBusyAnswerFlag && message.contains(inputNick)) {
             System.out.println("Sorry, this nick: " + inputNick + " is already occupied. Try again.");
             myNick = null;
             inputNick = null;
-            inputAndCheckNick();
+            myNickQuestionFlag = false;
+            return true;
         }
+        return false;
     }
 
     /**
@@ -359,7 +375,7 @@ public class MulticastSocketClient {
     private static boolean recognizeNICKquestion(String message) {
         if (message.contains("NICK") && !myNickQuestionFlag) {
             if (message.split("NICK")[1].trim().equals(myNick)) {
-                System.out.println("THIS IS MY NICK!");
+//                System.out.println("THIS IS MY NICK!");
 
                 String busyMessage = "NICK " + myNick + " BUSY";
                 myNickBusyAnswerFlag = true;
