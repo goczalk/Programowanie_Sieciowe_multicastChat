@@ -40,10 +40,17 @@ public class MulticastSocketClient {
             } catch (IOException ex) {
                 ex.printStackTrace();
             }
+
         });
         receivingThread.start();
 
         inputRoomAndSendJOIN();
+
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            public void run() {
+                sendLEFTmessage();
+            }
+        });
 
         Thread sendingThread = new Thread(() -> {
             try (DatagramSocket serverSocket = new DatagramSocket()) {
@@ -181,11 +188,7 @@ public class MulticastSocketClient {
         if (getFirstPartOfSplittedBySpace(message).equals("EXIT") && getSecondPartOfSplittedBySpace(message).equals(myRoom)) {
             System.out.println("You have just left room: " + myRoom);
 
-            try (DatagramSocket serverSocket = new DatagramSocket()) {
-                sendMessage(serverSocket, "LEFT " + myRoom + " " + myNick);
-            } catch (SocketException e) {
-                e.printStackTrace();
-            }
+            sendLEFTmessage();
 
             myRoom = null;
             inputRoomAndSendJOIN();
@@ -351,6 +354,15 @@ public class MulticastSocketClient {
             return true;
         }
         return false;
+    }
+
+
+    private static void sendLEFTmessage() {
+        try (DatagramSocket serverSocket = new DatagramSocket()) {
+            sendMessage(serverSocket, "LEFT " + myRoom + " " + myNick);
+        } catch (SocketException e) {
+            e.printStackTrace();
+        }
     }
 
     // Open a new DatagramSocket, which will be used to send the data.
