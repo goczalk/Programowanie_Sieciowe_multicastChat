@@ -186,6 +186,7 @@ public class MulticastSocketClient {
             throw new SocketTimeoutException(); //because IOException is more general!
         } catch (IOException e) {
             System.out.println("There was a problem with socket when reading message. Exiting program...");
+            clientSocket.close();
             System.exit(1);
         }
 
@@ -340,6 +341,7 @@ public class MulticastSocketClient {
             serverSocket.send(msgPacket);
         } catch (IOException e) {
             System.out.println("There was a problem with socket when sending message or command.");
+            serverSocket.close();
             System.exit(1);
         }
     }
