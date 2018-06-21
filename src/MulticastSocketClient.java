@@ -35,7 +35,8 @@ public class MulticastSocketClient {
                     printMessageOrRecognizeCommand(message);
                 }
             } catch (IOException ex) {
-                ex.printStackTrace();
+                System.out.println("There was a problem with receiving socket. Exiting program...");
+                System.exit(1);
             }
 
         });
@@ -61,7 +62,8 @@ public class MulticastSocketClient {
                     }
                 }
             } catch (IOException e) {
-                e.printStackTrace();
+                System.out.println("There was a problem with sending socket. Exiting program...");
+                System.exit(1);
             }
         });
         sendingThread.start();
@@ -79,7 +81,8 @@ public class MulticastSocketClient {
         try (DatagramSocket serverSocket = new DatagramSocket()) {
             sendMessage(serverSocket, "NICK " + inputNick);
         } catch (SocketException e) {
-            e.printStackTrace();
+            System.out.println("There was a problem with socket when checking nick. Exiting program...");
+            System.exit(1);
         }
 
         boolean timeoutTimedOut = false;
@@ -91,7 +94,8 @@ public class MulticastSocketClient {
             //TODO: (BUG) when new user added on other user's timeout -> two users with same nick
             timeoutTimedOut = setTimeoutReadRecognizeNick(clientSocket, 2000); //change to 10s
         } catch (IOException ex) {
-            ex.printStackTrace();
+            System.out.println("There was a problem with socket when checking nick. Exiting program...");
+            System.exit(1);
         }
 
         if (timeoutTimedOut) {
@@ -111,7 +115,7 @@ public class MulticastSocketClient {
         try (DatagramSocket serverSocket = new DatagramSocket()) {
             sendMessage(serverSocket, "JOIN " + myRoom + " " + myNick);
         } catch (SocketException e) {
-            e.printStackTrace();
+            System.out.println("There was a problem with socket when sending info that you joined the room.");
         }
 
         System.out.println("To exit the room, type: EXIT " + myRoom);
@@ -181,7 +185,8 @@ public class MulticastSocketClient {
         } catch (SocketTimeoutException e) {
             throw new SocketTimeoutException(); //because IOException is more general!
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println("There was a problem with socket when reading message. Exiting program...");
+            System.exit(1);
         }
 
         String message = new String(buf, 0, buf.length);
@@ -270,7 +275,9 @@ public class MulticastSocketClient {
                 try (DatagramSocket serverSocket = new DatagramSocket()) {
                     sendMessage(serverSocket, busyMessage);
                 } catch (SocketException e) {
-                    e.printStackTrace();
+                    System.out.println("There was a problem with socket when sending command about busy nick." +
+                                        "Exiting program...");
+                    System.exit(1);
                 }
             }
         }
@@ -297,7 +304,7 @@ public class MulticastSocketClient {
                 try (DatagramSocket serverSocket = new DatagramSocket()) {
                     sendMessage(serverSocket, "ROOM " + myRoom + " " + myNick);
                 } catch (SocketException e) {
-                    e.printStackTrace();
+                    System.out.println("There was a problem with socket when sending your room presence message.");
                 }
             }
         }
@@ -321,7 +328,7 @@ public class MulticastSocketClient {
         try (DatagramSocket serverSocket = new DatagramSocket()) {
             sendMessage(serverSocket, "LEFT " + myRoom + " " + myNick);
         } catch (SocketException e) {
-            e.printStackTrace();
+            System.out.println("There was a problem with socket when sending command about leaving room by you.");
         }
     }
 
@@ -332,7 +339,8 @@ public class MulticastSocketClient {
         try {
             serverSocket.send(msgPacket);
         } catch (IOException e) {
-            e.printStackTrace();
+            System.out.println("There was a problem with socket when sending message or command.");
+            System.exit(1);
         }
     }
 
@@ -342,7 +350,8 @@ public class MulticastSocketClient {
         try (DatagramSocket serverSocket = new DatagramSocket()) {
             sendMessage(serverSocket, "WHOIS " + myRoom);
         } catch (SocketException e) {
-            e.printStackTrace();
+            System.out.println("There was a problem with socket when sending WHOIS question.");
+            return;
         }
 
         boolean timeoutTimedOut = false;
@@ -350,9 +359,10 @@ public class MulticastSocketClient {
             clientSocket.joinGroup(address);
 
             //TODO check if user can send input
-            timeoutTimedOut = setTimeoutReadRoomCommandColectUsers(clientSocket, 2000);
+            timeoutTimedOut = setTimeoutReadRoomCommandCollectUsers(clientSocket, 2000);
         } catch (IOException ex) {
-            ex.printStackTrace();
+            System.out.println("There was a problem with socket when waiting for answer for WHOIS question.");
+            return;
         }
 
         if (timeoutTimedOut) {
@@ -369,7 +379,8 @@ public class MulticastSocketClient {
         try {
             clientSocket.setSoTimeout(timeoutMillis);
         } catch (SocketException e) {
-            e.printStackTrace();
+            System.out.println("There was a problem with socket when checking NICK. Exiting program...");
+            System.exit(1);
         }
 
         boolean nickIsBusy;
@@ -392,13 +403,14 @@ public class MulticastSocketClient {
         }
     }
 
-    private static boolean setTimeoutReadRoomCommandColectUsers(MulticastSocket clientSocket, int timeoutMillis) {
+    private static boolean setTimeoutReadRoomCommandCollectUsers(MulticastSocket clientSocket, int timeoutMillis) {
         boolean timeoutTimedOut = false;
 
         try {
             clientSocket.setSoTimeout(timeoutMillis);
         } catch (SocketException e) {
-            e.printStackTrace();
+            System.out.println("There was a problem with socket when gathering info for WHOIS question.");
+            return false;
         }
 
         try {
