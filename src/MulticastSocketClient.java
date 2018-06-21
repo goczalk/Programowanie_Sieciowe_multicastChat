@@ -32,10 +32,7 @@ public class MulticastSocketClient {
                 clientSocket.joinGroup(address);
                 while (true) {
                     String message = readMessage(clientSocket);
-                    boolean isCommand = recognizeCommand(message);
-                    if (!isCommand) {
-                        printMessage(message);
-                    }
+                    printMessageOrRecognizeCommand(message);
                 }
             } catch (IOException ex) {
                 ex.printStackTrace();
@@ -70,7 +67,6 @@ public class MulticastSocketClient {
         sendingThread.start();
 
     }
-
 
     private static void inputAndCheckNick() {
         Scanner scanner = new Scanner(System.in);
@@ -164,6 +160,18 @@ public class MulticastSocketClient {
         }
     }
 
+    private static void printMessageOrRecognizeCommand(String message) {
+        if(getFirstPartOfSplittedBySpace(message).equals("MSG")){
+            printMessage(message);
+        }
+        else{
+            recognizeNICKquestion(message);
+            recognizeJOINcommand(message);
+            recognizeLEFTcommand(message);
+            recognizeWHOIScommand(message);
+        }
+    }
+
     private static String readMessage(MulticastSocket clientSocket) throws SocketTimeoutException {
         byte[] buf = new byte[256];
         // Receive the information
@@ -184,7 +192,7 @@ public class MulticastSocketClient {
      * @param message
      * @return true if EXIT command, false otherwise
      */
-    private static boolean recognizeEXITcommand(String message) {
+    private static boolean recognizeEXITinput(String message) {
         if (getFirstPartOfSplittedBySpace(message).equals("EXIT") && getSecondPartOfSplittedBySpace(message).equals(myRoom)) {
             System.out.println("You have just left room: " + myRoom);
 
@@ -200,34 +208,17 @@ public class MulticastSocketClient {
 
     /**
      * @param message
-     * @return true if is command, false otherwise
-     */
-    private static boolean recognizeCommand(String message) {
-        boolean isCommand = false;
-        if (recognizeNICKquestion(message) || recognizeJOINcommand(message) || recognizeLEFTcommand(message)
-                || recognizeWHOIScommand(message) || recognizeROOMcommand(message)) {
-            isCommand = true;
-        }
-        return isCommand;
-    }
-
-    /**
-     * @param message
      * @return true if input was command to execute, not message; false otherwise
      */
     private static boolean recognizeInput(String message) {
         boolean isCommand = false;
-        if (recognizeEXITcommand(message) || recognizeWHOISinput(message)) {
+        if (recognizeEXITinput(message) || recognizeWHOISinput(message)) {
             isCommand = true;
         }
         return isCommand;
     }
 
-    /**
-     * @param message
-     * @return true if JOIN command, false otherwise
-     */
-    private static boolean recognizeJOINcommand(String message) {
+    private static void recognizeJOINcommand(String message) {
         if (getFirstPartOfSplittedBySpace(message).equals("JOIN")) {
             //rejoining other room, do not print JOIN message about yourself
             if (!message.contains(myNick)) {
@@ -236,16 +227,10 @@ public class MulticastSocketClient {
                     System.out.println(partsOfCommand[2] + " just joined your room!");
                 }
             }
-            return true;
         }
-        return false;
     }
 
-    /**
-     * @param message
-     * @return true if LEFT command, false otherwise
-     */
-    private static boolean recognizeLEFTcommand(String message) {
+    private static void recognizeLEFTcommand(String message) {
         if (getFirstPartOfSplittedBySpace(message).equals("LEFT")) {
             //not your LEFT command
             if (!message.contains(myNick)) {
@@ -254,9 +239,7 @@ public class MulticastSocketClient {
                     System.out.println(partsOfCommand[2] + " just left your room.");
                 }
             }
-            return true;
         }
-        return false;
     }
 
     /**
@@ -276,11 +259,7 @@ public class MulticastSocketClient {
         return false;
     }
 
-    /**
-     * @param message
-     * @return true if NICK command, false otherwise
-     */
-    private static boolean recognizeNICKquestion(String message) {
+    private static void recognizeNICKquestion(String message) {
         if (getFirstPartOfSplittedBySpace(message).equals("NICK") && !myNickQuestionFlag) {
             if (getSecondPartOfSplittedBySpace(message).equals(myNick)) {
 //                System.out.println("THIS IS MY NICK!");
@@ -294,24 +273,11 @@ public class MulticastSocketClient {
                     e.printStackTrace();
                 }
             }
-            return true;
         }
-        return false;
-    }
-
-    /**
-     * @param message
-     * @return true if ROOM command, false otherwise
-     */
-    private static boolean recognizeROOMcommand(String message) {
-        if (getFirstPartOfSplittedBySpace(message).equals("ROOM")) {
-            return true;
-        }
-        return false;
     }
 
     private static boolean recognizeROOMcommandAppendAllUsers(String message) {
-        if (recognizeROOMcommand(message)) {
+        if (getFirstPartOfSplittedBySpace(message).equals("ROOM")) {
             if (myWhoIsQuestion) {
                 String userName = message.split(" ")[2];
                 if (allUsersInMyRoom == null) {
@@ -325,11 +291,7 @@ public class MulticastSocketClient {
         return false;
     }
 
-    /**
-     * @param message
-     * @return true if WHOIS command, false otherwise
-     */
-    private static boolean recognizeWHOIScommand(String message) {
+    private static void recognizeWHOIScommand(String message) {
         if (getFirstPartOfSplittedBySpace(message).equals("WHOIS")) {
             if (getSecondPartOfSplittedBySpace(message).equals(myRoom)) {
                 try (DatagramSocket serverSocket = new DatagramSocket()) {
@@ -338,14 +300,12 @@ public class MulticastSocketClient {
                     e.printStackTrace();
                 }
             }
-            return true;
         }
-        return false;
     }
 
     /**
      * @param message
-     * @return true is WHOIS command, false otherwise
+     * @return true is WHOIS input, false otherwise
      */
     private static boolean recognizeWHOISinput(String message) {
         if (getFirstPartOfSplittedBySpace(message).equals("WHOIS")) {
